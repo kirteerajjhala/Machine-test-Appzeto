@@ -1,7 +1,11 @@
 import express from "express";
 import asyncHandler from "../utils/asyncHandler.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { dashboard, adminOrders, updateOrderStatus } from "../controllers/adminController.js";
+import {
+  dashboard,
+  adminOrders,
+  updateOrderStatus,
+} from "../controllers/adminController.js";
 
 const router = express.Router();
 router.use(requireAuth, requireRole("ADMIN"));

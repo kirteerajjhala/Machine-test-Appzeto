@@ -6,22 +6,97 @@ import { useAppState } from "./context/AppContext.jsx";
 const API = "http://localhost:5000/api";
 const request = async (path, options = {}) => {
   const token = localStorage.getItem("token");
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(API + path, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.body
+      ? isFormData
+        ? options.body
+        : JSON.stringify(options.body)
+      : undefined,
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error?.message || "Request failed");
   return data;
 };
-const money = (v) => Number(v?.$numberDecimal || v || 0).toFixed(2);
+const money = (v) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(
+    Number(v?.$numberDecimal || v || 0),
+  );
+const numericMoney = (v) => Number(v?.$numberDecimal || v || 0).toFixed(2);
+const imageUrl = (value) =>
+  value?.startsWith("http")
+    ? value
+    : value
+      ? `http://localhost:5000${value}`
+      : "";
 
-function AdminPanel({ user, setNotice }) {
+function Toast({ message, onClose }) {
+  useEffect(() => {
+    if (!message) return undefined;
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [message, onClose]);
+  if (!message) return null;
+  return (
+    <div className="toast" role="status">
+      <span className="toast-icon">✓</span>
+      <span>{message}</span>
+      <button onClick={onClose} aria-label="Close notification">
+        ×
+      </button>
+    </div>
+  );
+}
+
+function ConfirmModal({ modal, onCancel }) {
+  if (!modal) return null;
+  return (
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !modal.loading) onCancel();
+      }}
+    >
+      <section
+        className="confirm-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+      >
+        <span className="modal-mark">!</span>
+        <h2 id="confirm-title">{modal.title}</h2>
+        <p>{modal.message}</p>
+        <div className="modal-actions">
+          <button
+            className="secondary"
+            disabled={modal.loading}
+            onClick={onCancel}
+          >
+            {modal.cancelText || "Cancel"}
+          </button>
+          <button
+            className="danger"
+            disabled={modal.loading}
+            onClick={modal.onConfirm}
+          >
+            {modal.loading
+              ? `${modal.confirmText || "Confirm"}...`
+              : modal.confirmText || "Confirm"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AdminPanel({ user, setNotice, confirmAction }) {
   const [tab, setTab] = useState("dashboard");
   const [stats, setStats] = useState(null);
   const [items, setItems] = useState([]);
@@ -30,15 +105,13 @@ function AdminPanel({ user, setNotice }) {
   const [form, setForm] = useState({
     name: "",
     description: "",
-    category: "",
     price: "",
     discount: 0,
-    sku: "",
     stock: 0,
-    images: "",
-    variants: [],
+    image: "",
   });
   const [busy, setBusy] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
   const update = (key, value) => setForm((old) => ({ ...old, [key]: value }));
   const load = async () => {
     try {
@@ -64,28 +137,18 @@ function AdminPanel({ user, setNotice }) {
     setForm({
       name: "",
       description: "",
-      category: "",
       price: "",
       discount: 0,
-      sku: "",
       stock: 0,
-      images: "",
-      variants: [],
+      image: "",
     });
   };
   const edit = (item) => {
     setEditing(item._id);
     setForm({
       ...item,
-      price: money(item.price),
-      images: (item.images || []).join(", "),
-      variants: (item.variants || []).map((v) => ({
-        ...v,
-        price: money(v.price),
-        attributes: Object.entries(v.attributes || {})
-          .map(([key, value]) => `${key}=${value}`)
-          .join(", "),
-      })),
+      price: numericMoney(item.price),
+      image: item.image || "",
     });
     setTab("products");
   };
@@ -93,34 +156,17 @@ function AdminPanel({ user, setNotice }) {
     event.preventDefault();
     setBusy(true);
     try {
-      const body = {
-        ...form,
+      const productBody = {
+        name: form.name,
+        description: form.description,
         price: Number(form.price),
         discount: Number(form.discount),
         stock: Number(form.stock),
-        images: form.images
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
-        variants: form.variants.map((v) => ({
-          sku: v.sku,
-          attributes: Object.fromEntries(
-            v.attributes
-              .split(",")
-              .map((pair) => pair.trim().split("="))
-              .filter((pair) => pair.length === 2),
-          ),
-          price: Number(v.price),
-          discount: Number(v.discount),
-          stock: Number(v.stock),
-          images: (v.images || "")
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean),
-          isActive: v.isActive !== false,
-        })),
       };
-      if (body.variants.length === 0) delete body.variants;
+      const body = new FormData();
+      for (const [key, value] of Object.entries(productBody))
+        body.append(key, Array.isArray(value) ? JSON.stringify(value) : value);
+      if (imageFile) body.append("image", imageFile);
       await request(editing ? `/products/${editing}` : "/products", {
         method: editing ? "PUT" : "POST",
         body,
@@ -134,26 +180,6 @@ function AdminPanel({ user, setNotice }) {
       setBusy(false);
     }
   };
-  const addVariant = () =>
-    update("variants", [
-      ...form.variants,
-      {
-        sku: "",
-        attributes: "size=Small, color=Black",
-        price: form.price || 0,
-        discount: 0,
-        stock: 0,
-        images: "",
-        isActive: true,
-      },
-    ]);
-  const patchVariant = (index, key, value) =>
-    update(
-      "variants",
-      form.variants.map((variant, i) =>
-        i === index ? { ...variant, [key]: value } : variant,
-      ),
-    );
   return (
     <section className="admin">
       <div className="admin-head">
@@ -188,7 +214,7 @@ function AdminPanel({ user, setNotice }) {
             ["Products", items.length],
             ["Orders", stats?.totalOrders || 0],
             ["Pending", stats?.pendingOrders || 0],
-            ["Revenue", `$${money(stats?.revenue)}`],
+            ["Revenue", money(stats?.revenue)],
             ["Low stock", stats?.lowStockProducts || 0],
           ].map(([label, value]) => (
             <div className="metric" key={label}>
@@ -211,20 +237,25 @@ function AdminPanel({ user, setNotice }) {
               <div className="admin-row" key={item._id}>
                 <div>
                   <b>{item.name}</b>
-                  <small>
-                    {item.sku} · {item.category}
-                  </small>
+                  <small>Stock {item.stock}</small>
                 </div>
-                <span>${money(item.price)}</span>
+                <span>{money(item.price)}</span>
                 <button onClick={() => edit(item)}>Edit</button>
                 <button
-                  onClick={async () => {
-                    await request(`/products/${item._id}`, {
-                      method: "DELETE",
-                    });
-                    setNotice("Product deactivated");
-                    load();
-                  }}
+                  onClick={() =>
+                    confirmAction(
+                      "Deactivate product?",
+                      `Deactivate ${item.name}? It will be removed from the storefront.`,
+                      "Deactivate",
+                      async () => {
+                        await request(`/products/${item._id}`, {
+                          method: "DELETE",
+                        });
+                        setNotice("Product deactivated successfully");
+                        await load();
+                      },
+                    )
+                  }
                 >
                   Deactivate
                 </button>
@@ -233,7 +264,7 @@ function AdminPanel({ user, setNotice }) {
           </div>
           <form className="admin-form" onSubmit={save}>
             <h3>{editing ? "Edit product" : "Create product"}</h3>
-            {["name", "description", "category", "sku", "images"].map((key) => (
+            {["name", "description", "images"].map((key) => (
               <input
                 key={key}
                 required={!["description", "images"].includes(key)}
@@ -246,6 +277,20 @@ function AdminPanel({ user, setNotice }) {
                 onChange={(e) => update(key, e.target.value)}
               />
             ))}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) =>
+                setImageFile(event.target.files?.[0] || null)
+              }
+            />
+            {imageFile && (
+              <img
+                className="upload-preview"
+                src={URL.createObjectURL(imageFile)}
+                alt="Product preview"
+              />
+            )}
             <div className="form-grid">
               <input
                 required
@@ -273,80 +318,6 @@ function AdminPanel({ user, setNotice }) {
                 onChange={(e) => update("stock", e.target.value)}
               />
             </div>
-            <div className="variant-head">
-              <h4>Variants</h4>
-              <button type="button" onClick={addVariant}>
-                + Add variant
-              </button>
-            </div>
-            {form.variants.map((variant, index) => (
-              <div className="variant-editor" key={index}>
-                <input
-                  required
-                  placeholder="Variant SKU"
-                  value={variant.sku}
-                  onChange={(e) => patchVariant(index, "sku", e.target.value)}
-                />
-                <input
-                  required
-                  placeholder="size=Small, color=Black"
-                  value={variant.attributes}
-                  onChange={(e) =>
-                    patchVariant(index, "attributes", e.target.value)
-                  }
-                />
-                <div className="form-grid">
-                  <input
-                    type="number"
-                    min="0"
-                    step=".01"
-                    placeholder="Price"
-                    value={variant.price}
-                    onChange={(e) =>
-                      patchVariant(index, "price", e.target.value)
-                    }
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    placeholder="Discount"
-                    value={variant.discount}
-                    onChange={(e) =>
-                      patchVariant(index, "discount", e.target.value)
-                    }
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Stock"
-                    value={variant.stock}
-                    onChange={(e) =>
-                      patchVariant(index, "stock", e.target.value)
-                    }
-                  />
-                </div>
-                <input
-                  placeholder="Variant image URLs"
-                  value={variant.images || ""}
-                  onChange={(e) =>
-                    patchVariant(index, "images", e.target.value)
-                  }
-                />
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() =>
-                    update(
-                      "variants",
-                      form.variants.filter((_, i) => i !== index),
-                    )
-                  }
-                >
-                  Remove variant
-                </button>
-              </div>
-            ))}
             <div>
               <button className="primary" disabled={busy}>
                 {busy
@@ -373,8 +344,31 @@ function AdminPanel({ user, setNotice }) {
                 <h2>{order.user?.email || ""}</h2>
               </div>
               <span className="status">{order.status}</span>
-              <b>${money(order.totals?.finalTotal)}</b>
-              <select value={order.status} onChange={async (event) => { try { await request(`/admin/orders/${order._id}/status`, { method: "PATCH", body: { status: event.target.value } }); setNotice("Order status updated"); await load(); } catch (e) { setNotice(e.message); } }}><option value={order.status}>{order.status}</option><option value="PAYMENT_PROCESSING">PAYMENT_PROCESSING</option><option value="PAID">PAID</option><option value="PROCESSING">PROCESSING</option><option value="SHIPPED">SHIPPED</option><option value="DELIVERED">DELIVERED</option><option value="CANCELLED">CANCELLED</option><option value="REFUNDED">REFUNDED</option></select>
+              <b>{money(order.totals?.finalTotal)}</b>
+              <select
+                value={order.status}
+                onChange={async (event) => {
+                  try {
+                    await request(`/admin/orders/${order._id}/status`, {
+                      method: "PATCH",
+                      body: { status: event.target.value },
+                    });
+                    setNotice("Order status updated");
+                    await load();
+                  } catch (e) {
+                    setNotice(e.message);
+                  }
+                }}
+              >
+                <option value={order.status}>{order.status}</option>
+                <option value="PAYMENT_PROCESSING">PAYMENT_PROCESSING</option>
+                <option value="PAID">PAID</option>
+                <option value="PROCESSING">PROCESSING</option>
+                <option value="SHIPPED">SHIPPED</option>
+                <option value="DELIVERED">DELIVERED</option>
+                <option value="CANCELLED">CANCELLED</option>
+                <option value="REFUNDED">REFUNDED</option>
+              </select>
             </article>
           ))}
         </div>
@@ -406,6 +400,7 @@ export default function App() {
     [authMode, setAuthMode] = useState("login"),
     [form, setForm] = useState({});
   const [addressForm, setAddressForm] = useState({});
+  const [modal, setModal] = useState(null);
   const loggedIn = Boolean(user);
   const loadProducts = async () =>
     setProducts((await request("/products")).data.products);
@@ -454,7 +449,10 @@ export default function App() {
       localStorage.setItem("token", data.token);
       setUser(data.user);
       setForm({});
-      setNotice("Welcome back");
+      setView(data.user.role === "ADMIN" ? "admin" : "shop");
+      setNotice(
+        data.user.role === "ADMIN" ? "Admin dashboard" : "Welcome back",
+      );
     } catch (err) {
       setNotice(err.message);
     } finally {
@@ -462,7 +460,7 @@ export default function App() {
     }
   };
   const addToCart = async (item = product) => {
-    if (!loggedIn) return setNotice("Please sign in to add items");
+    if (!loggedIn) return requireLogin();
     const variant =
       selectedVariant ||
       item?.variants?.find((entry) => entry.isActive && entry.stock > 0) ||
@@ -505,6 +503,35 @@ export default function App() {
       setNotice(e.message);
     }
   };
+  const confirmAction = (title, message, confirmText, action) =>
+    setModal({
+      title,
+      message,
+      confirmText,
+      loading: false,
+      onConfirm: async () => {
+        setModal((current) => ({ ...current, loading: true }));
+        try {
+          await action();
+        } catch (e) {
+          setNotice(e.message);
+        } finally {
+          setModal(null);
+        }
+      },
+    });
+  const requireLogin = () =>
+    setModal({
+      title: "Login Required",
+      message: "Please login to continue.",
+      confirmText: "Login",
+      cancelText: "Cancel",
+      loading: false,
+      onConfirm: () => {
+        setModal(null);
+        setView("auth");
+      },
+    });
   const checkout = async () => {
     if (!addresses.length) return setNotice("Add an address before checkout");
     setBusy(true);
@@ -557,6 +584,7 @@ export default function App() {
     setUser(null);
     setCart(null);
     setView("shop");
+    setNotice("Logged out successfully");
   };
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
   const title =
@@ -573,49 +601,77 @@ export default function App() {
   return (
     <div className="app">
       <header className="nav">
-        <button className="brand" onClick={() => setView(user?.role === "ADMIN" ? "admin" : "shop")}>
-          NORTH / OBJECTS
+        <button
+          className="brand"
+          onClick={() => setView(user?.role === "ADMIN" ? "admin" : "shop")}
+        >
+          <img
+            className="brand-logo"
+            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQfwXj3yAyNz5HOhcFy1ognHEtMcXZHdGyAfTIzsFneYg&s=10"
+            alt="North Objects"
+          />
         </button>
         <nav>
-          {user?.role !== "ADMIN" && <button onClick={() => setView("shop")}>Shop</button>}
-          {user?.role !== "ADMIN" && <button
-            onClick={() => {
-              if (!loggedIn) return setNotice("Please sign in");
-              setView("orders");
-              loadOrders();
-            }}
-          >
-            Orders
-          </button>}
-          {user?.role !== "ADMIN" && <button
-            className="cart-button"
-            onClick={() => {
-              if (!loggedIn) return setNotice("Please sign in");
-              setView("cart");
-            }}
-          >
-            <span>Bag</span>
-            <b>{cart?.items?.length || 0}</b>
-          </button>}
+          {user?.role !== "ADMIN" && (
+            <button onClick={() => setView("shop")}>Shop</button>
+          )}
+          {user?.role !== "ADMIN" && (
+            <button
+              onClick={() => {
+                if (!loggedIn) return requireLogin();
+                setView("orders");
+                loadOrders();
+              }}
+            >
+              Orders
+            </button>
+          )}
+          {user?.role !== "ADMIN" && (
+            <button
+              className="cart-button"
+              onClick={() => {
+                if (!loggedIn) return requireLogin();
+                setView("cart");
+              }}
+            >
+              <span>Bag</span>
+              <b>{cart?.items?.length || 0}</b>
+            </button>
+          )}
           {user?.role === "ADMIN" && (
             <button onClick={() => setView("admin")}>Admin</button>
           )}
         </nav>
         <div className="account">
           {loggedIn ? (
-            <button onClick={logout}>{user.name} · Sign out</button>
+            <button
+              className="logout-button"
+              onClick={() =>
+                confirmAction(
+                  "Logout?",
+                  "Are you sure you want to logout?",
+                  "Logout",
+                  logout,
+                )
+              }
+            >
+              {user.name} · Logout
+            </button>
           ) : (
-            <button onClick={() => setView("auth")}>Sign in</button>
+            <button className="login-button" onClick={() => setView("auth")}>
+              Login
+            </button>
           )}
         </div>
       </header>
-      {notice && (
-        <div className="notice" onClick={() => setNotice("")}>
-          {notice}
-        </div>
-      )}
       <main>
-        {view === "admin" && <AdminPanel user={user} setNotice={setNotice} />}
+        {view === "admin" && (
+          <AdminPanel
+            user={user}
+            setNotice={setNotice}
+            confirmAction={confirmAction}
+          />
+        )}
         {view !== "admin" && (
           <>
             <section className="hero">
@@ -635,6 +691,9 @@ export default function App() {
                       onClick={() => openProduct(item._id)}
                     >
                       <div className="visual">
+                        {item.images?.[0] && (
+                          <img src={imageUrl(item.images[0])} alt={item.name} />
+                        )}
                         <span>{item.category}</span>
                         <strong>{item.name.slice(0, 1)}</strong>
                       </div>
@@ -643,7 +702,7 @@ export default function App() {
                           <h2>{item.name}</h2>
                           <p>{item.description}</p>
                         </div>
-                        <b>${money(item.price)}</b>
+                        <b>{money(item.price)}</b>
                       </div>
                     </article>
                   ))
@@ -655,6 +714,9 @@ export default function App() {
             {view === "detail" && product && (
               <section className="detail">
                 <div className="visual large">
+                  {product.images?.[0] && (
+                    <img src={imageUrl(product.images[0])} alt={product.name} />
+                  )}
                   <span>{product.category}</span>
                   <strong>{product.name.slice(0, 1)}</strong>
                 </div>
@@ -663,7 +725,7 @@ export default function App() {
                   <h2>{product.name}</h2>
                   <p>{product.description}</p>
                   <strong className="price">
-                    ${money(selectedVariant?.price || product.price)}
+                    {money(selectedVariant?.price || product.price)}
                   </strong>
                   {product.variants?.length > 0 && (
                     <div className="variants">
@@ -703,6 +765,13 @@ export default function App() {
                   {cart?.items?.length ? (
                     cart.items.map((item) => (
                       <div className="line" key={item.id}>
+                        {item.product?.images?.[0] && (
+                          <img
+                            className="thumb"
+                            src={imageUrl(item.product.images[0])}
+                            alt=""
+                          />
+                        )}
                         <div>
                           <h3>{item.product?.name}</h3>
                           <small>
@@ -710,7 +779,7 @@ export default function App() {
                               Object.values(item.variant.attributes).join(
                                 " / ",
                               )}{" "}
-                            · ${money(item.unitPrice)}
+                            · {money(item.unitPrice)}
                           </small>
                         </div>
                         <div className="quantity">
@@ -718,7 +787,12 @@ export default function App() {
                             onClick={() =>
                               item.quantity > 1
                                 ? updateItem(item.id, item.quantity - 1)
-                                : removeItem(item.id)
+                                : confirmAction(
+                                    "Remove item?",
+                                    `Remove ${item.product?.name || "this item"} from your cart?`,
+                                    "Remove",
+                                    () => removeItem(item.id),
+                                  )
                             }
                           >
                             −
@@ -732,7 +806,7 @@ export default function App() {
                             +
                           </button>
                         </div>
-                        <b>${money(item.lineTotal)}</b>
+                        <b>{money(item.lineTotal)}</b>
                       </div>
                     ))
                   ) : (
@@ -745,15 +819,15 @@ export default function App() {
                   <span className="kicker">Order summary</span>
                   <div>
                     <span>Subtotal</span>
-                    <b>${money(cart?.totals?.subtotal)}</b>
+                    <b>{money(cart?.totals?.subtotal)}</b>
                   </div>
                   <div>
                     <span>Discount</span>
-                    <b>−${money(cart?.totals?.discount)}</b>
+                    <b>−{money(cart?.totals?.discount)}</b>
                   </div>
                   <div className="grand">
                     <span>Total</span>
-                    <b>${money(cart?.totals?.finalTotal)}</b>
+                    <b>{money(cart?.totals?.finalTotal)}</b>
                   </div>
                   <button
                     className="primary"
@@ -819,7 +893,7 @@ export default function App() {
                   <span className="kicker">Final total</span>
                   <div className="grand">
                     <span>Due today</span>
-                    <b>${money(cart?.totals?.finalTotal)}</b>
+                    <b>{money(cart?.totals?.finalTotal)}</b>
                   </div>
                   <button
                     className="primary"
@@ -846,7 +920,7 @@ export default function App() {
                         </h2>
                       </div>
                       <span className="status">{order.status}</span>
-                      <b>${money(order.totals.finalTotal)}</b>
+                      <b>{money(order.totals.finalTotal)}</b>
                     </article>
                   ))
                 ) : (
@@ -910,6 +984,8 @@ export default function App() {
       <footer>
         North Objects <span>Designed for the everyday.</span>
       </footer>
+      <Toast message={notice} onClose={() => setNotice("")} />
+      <ConfirmModal modal={modal} onCancel={() => setModal(null)} />
     </div>
   );
 }

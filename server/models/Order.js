@@ -19,10 +19,8 @@ const orderItemSchema = new mongoose.Schema(
       ref: "Product",
       required: true,
     },
-    variantId: { type: mongoose.Schema.Types.ObjectId },
-    sku: { type: String, required: true, trim: true, uppercase: true },
     name: { type: String, required: true, trim: true },
-    attributes: { type: Map, of: String },
+    image: { type: String, trim: true },
     quantity: {
       type: Number,
       required: true,

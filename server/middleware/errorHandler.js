@@ -12,6 +12,18 @@ export const notFoundHandler = (req, res, next) => {
 };
 
 export const errorHandler = (error, req, res, next) => {
+  if (error?.code?.startsWith?.("LIMIT_")) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: error.code,
+        message:
+          error.code === "LIMIT_UNEXPECTED_FILE"
+            ? "Please upload one product image"
+            : "Uploaded image is invalid or too large",
+      },
+    });
+  }
   const statusCode =
     error.statusCode ||
     (error.code === 11000

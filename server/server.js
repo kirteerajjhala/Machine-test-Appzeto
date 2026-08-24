@@ -13,6 +13,7 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import { releaseExpiredReservations } from "./services/inventoryService.js";
+import path from "node:path";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ const app = express();
 app.use(cors());
 app.use(securityHeaders);
 app.use(express.json());
+app.use("/uploads", express.static(path.resolve("uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/products", productRoutes);

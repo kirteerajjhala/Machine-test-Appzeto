@@ -30,22 +30,13 @@ const loadCheckoutLines = async (cart) => {
     });
     if (!product)
       throw new ApiError(409, "A cart product is no longer available");
-    const variant = cartItem.variantId
-      ? product.variants.id(cartItem.variantId)
-      : null;
-    if (product.variants.length > 0 && (!variant || !variant.isActive)) {
-      throw new ApiError(409, "A cart variant is no longer available");
-    }
-    const price = money(variant?.price ?? product.price);
-    const discountRate = money(variant?.discount ?? product.discount);
+    const price = money(product.price);
+    const discountRate = money(product.discount);
     const lineSubtotal = money(price * cartItem.quantity);
     const lineDiscount = money((lineSubtotal * discountRate) / 100);
     lines.push({
       product,
-      variant,
-      sku: variant?.sku || product.sku,
       name: product.name,
-      attributes: variant?.attributes,
       quantity: cartItem.quantity,
       unitPrice: decimal(price),
       discount: decimal(lineDiscount),
@@ -89,11 +80,8 @@ export const createOrder = async (req, res) => {
     items: lines.map((line) => ({
       product: line.product._id,
       variantId: line.variant?._id,
-      sku: line.sku,
       name: line.name,
-      attributes: line.attributes
-        ? Object.fromEntries(line.attributes)
-        : undefined,
+      image: line.product.image,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
       discount: line.discount,

@@ -26,7 +26,7 @@ const paymentSchema = new mongoose.Schema(
     amount: { type: mongoose.Schema.Types.Decimal128, required: true, min: 0 },
     currency: {
       type: String,
-      default: "USD",
+      default: "INR",
       uppercase: true,
       trim: true,
       maxlength: 3,

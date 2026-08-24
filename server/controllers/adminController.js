@@ -64,7 +64,11 @@ export const updateOrderStatus = async (req, res) => {
   const { status } = req.body || {};
   const order = await Order.findById(req.params.id);
   if (!order) throw new ApiError(404, "Order not found");
-  if (!transitions[order.status]?.includes(status)) throw new ApiError(409, `Invalid transition from ${order.status} to ${status}`);
+  if (!transitions[order.status]?.includes(status))
+    throw new ApiError(
+      409,
+      `Invalid transition from ${order.status} to ${status}`,
+    );
   order.status = status;
   await order.save();
   res.json({ success: true, data: { order } });

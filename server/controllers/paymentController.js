@@ -57,7 +57,7 @@ export const createPayment = async (req, res) => {
         order: order._id,
         user: req.user._id,
         amount: order.totals.finalTotal,
-        currency: "USD",
+        currency: "INR",
       },
       $set: {
         status: outcome,
@@ -129,20 +129,16 @@ export const paymentWebhook = async (req, res) => {
         },
       );
     }
-    return res
-      .status(200)
-      .json({
-        success: true,
-        data: { received: true, eventId: event.providerEventId },
-      });
+    return res.status(200).json({
+      success: true,
+      data: { received: true, eventId: event.providerEventId },
+    });
   } catch (error) {
     if (error?.code === 11000)
-      return res
-        .status(200)
-        .json({
-          success: true,
-          data: { received: true, duplicate: true, eventId },
-        });
+      return res.status(200).json({
+        success: true,
+        data: { received: true, duplicate: true, eventId },
+      });
     throw error;
   }
 };

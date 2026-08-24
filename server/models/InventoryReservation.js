@@ -20,8 +20,6 @@ const inventoryReservationSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    variantId: { type: mongoose.Schema.Types.ObjectId },
-    sku: { type: String, required: true, trim: true, uppercase: true },
     quantity: {
       type: Number,
       required: true,
