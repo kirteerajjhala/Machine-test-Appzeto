@@ -406,11 +406,18 @@ p {
 }
 .line {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 24px;
+  grid-template-columns: auto 1fr auto auto auto;
+  gap: 20px;
   align-items: center;
   padding: 20px 0;
   border-bottom: 1px solid var(--line);
+}
+.thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--line);
 }
 .line h3 {
   font-size: 16px;
@@ -425,6 +432,7 @@ p {
   display: flex;
   align-items: center;
   border: 1px solid var(--line);
+  border-radius: 4px;
 }
 .quantity button,
 .quantity span {
@@ -433,6 +441,21 @@ p {
   text-align: center;
   padding-top: 5px;
   font-size: 12px;
+}
+.cart-remove-btn {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.cart-remove-btn:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
 }
 .summary {
   border-left: 1px solid var(--line);

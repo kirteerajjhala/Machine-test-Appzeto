@@ -5,8 +5,13 @@ export const reserveOrderInventory = async (order, userId) => {
   const reservations = [];
   try {
     for (const item of order.items) {
+      const productId = item.product?._id || item.product;
       const result = await Product.updateOne(
-        { _id: item.product, stock: { $gte: item.quantity }, isActive: true },
+        {
+          _id: productId,
+          stock: { $gte: item.quantity },
+          isActive: { $ne: false },
+        },
         { $inc: { stock: -item.quantity } },
       );
       if (result.modifiedCount !== 1)
@@ -15,7 +20,7 @@ export const reserveOrderInventory = async (order, userId) => {
         await InventoryReservation.create({
           order: order._id,
           user: userId,
-          product: item.product,
+          product: productId,
           quantity: item.quantity,
           expiresAt: new Date(Date.now() + reservationWindowMs),
         }),

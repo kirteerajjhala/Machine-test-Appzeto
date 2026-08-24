@@ -24,12 +24,19 @@ const getAddressSnapshot = (address) => ({
 const loadCheckoutLines = async (cart) => {
   const lines = [];
   for (const cartItem of cart.items) {
+    const productId = cartItem.product?._id || cartItem.product;
     const product = await Product.findOne({
-      _id: cartItem.product,
-      isActive: true,
+      _id: productId,
+      isActive: { $ne: false },
     });
     if (!product)
       throw new ApiError(409, "A cart product is no longer available");
+    if (product.stock < cartItem.quantity) {
+      throw new ApiError(
+        400,
+        `Insufficient stock for "${product.name}". Available stock: ${product.stock}`,
+      );
+    }
     const price = money(product.price);
     const discountRate = money(product.discount);
     const lineSubtotal = money(price * cartItem.quantity);

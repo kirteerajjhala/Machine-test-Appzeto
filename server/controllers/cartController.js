@@ -12,7 +12,7 @@ const quantity = (value) => {
 const productForCart = async (id) => {
   if (!mongoose.isValidObjectId(id))
     throw new ApiError(400, "Invalid product ID");
-  const product = await Product.findOne({ _id: id, isActive: true });
+  const product = await Product.findOne({ _id: id, isActive: { $ne: false } });
   if (!product) throw new ApiError(404, "Product not found");
   return product;
 };
