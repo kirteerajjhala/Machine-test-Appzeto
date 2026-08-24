@@ -14,8 +14,8 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true, select: false },
     role: {
       type: String,
-      enum: ["CUSTOMER", "ADMIN"],
-      default: "CUSTOMER",
+      enum: ["USER", "CUSTOMER", "ADMIN"],
+      default: "USER",
       index: true,
     },
     isActive: { type: Boolean, default: true, index: true },

@@ -4,6 +4,7 @@ import Product from "../models/Product.js";
 import Address from "../models/Address.js";
 import Order from "../models/Order.js";
 import { ApiError } from "../middleware/errorHandler.js";
+import { reserveOrderInventory } from "../services/inventoryService.js";
 
 const money = (value) =>
   Math.round(Number(value?.toString?.() ?? value ?? 0) * 100) / 100;
@@ -109,10 +110,18 @@ export const createOrder = async (req, res) => {
     shippingAddress: getAddressSnapshot(address),
   });
 
+  try {
+    await reserveOrderInventory(order, req.user._id);
+  } catch (error) {
+    await Order.deleteOne({ _id: order._id, user: req.user._id });
+    throw new ApiError(409, error.message || "Insufficient inventory");
+  }
+
   await Cart.updateOne(
     { _id: cart._id, user: req.user._id },
     { $set: { items: [], lastActivityAt: new Date() } },
   );
+
   res.status(201).json({ success: true, data: { order } });
 };
 

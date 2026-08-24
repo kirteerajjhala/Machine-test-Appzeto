@@ -12,6 +12,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import { releaseExpiredReservations } from "./services/inventoryService.js";
 
 dotenv.config();
 
@@ -50,6 +51,10 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
+  setInterval(
+    () => releaseExpiredReservations().catch(console.error),
+    60 * 1000,
+  );
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
