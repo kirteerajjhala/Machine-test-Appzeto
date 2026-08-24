@@ -130,3 +130,16 @@ export const getOrder = async (req, res) => {
   if (!order) throw new ApiError(404, "Order not found");
   res.json({ success: true, data: { order } });
 };
+
+export const cancelOrder = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id))
+    throw new ApiError(400, "Invalid order ID");
+  const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
+  if (!order) throw new ApiError(404, "Order not found");
+  if (!["PENDING", "PAYMENT_FAILED"].includes(order.status))
+    throw new ApiError(409, "Order cannot be cancelled in its current state");
+  order.status = "CANCELLED";
+  order.cancelledAt = new Date();
+  await order.save();
+  res.json({ success: true, data: { order } });
+};

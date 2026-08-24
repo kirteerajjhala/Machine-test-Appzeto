@@ -1,1 +1,11 @@
-html{background:#e9e8df}button:focus-visible,input:focus-visible{outline:2px solid #c94c2d;outline-offset:2px}
+html {
+  background: #f7f8f4;
+}
+body {
+  min-width: 320px;
+}
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #e05a35;
+  outline-offset: 3px;
+}

@@ -10,7 +10,7 @@ const idempotencySchema = new mongoose.Schema(
     responseBody: { type: mongoose.Schema.Types.Mixed },
     resourceId: { type: mongoose.Schema.Types.ObjectId },
     completedAt: Date,
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
   },
   { timestamps: true, versionKey: false },
 );
