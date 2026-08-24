@@ -6,6 +6,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { securityHeaders } from "./middleware/securityHeaders.js";
 import authRoutes from "./routes/authRoutes.js";
 import addressRoutes from "./routes/addressRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(securityHeaders);
 app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/addresses", addressRoutes);
+app.use("/api/products", productRoutes);
 
 app.get("/", (req, res) => {
   res.json({
