@@ -9,6 +9,8 @@ import addressRoutes from "./routes/addressRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import webhookRoutes from "./routes/webhookRoutes.js";
 
 dotenv.config();
 
@@ -22,6 +24,8 @@ app.use("/api/addresses", addressRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/webhooks", webhookRoutes);
 
 app.get("/", (req, res) => {
   res.json({
