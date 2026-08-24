@@ -13,10 +13,19 @@ export const notFoundHandler = (req, res, next) => {
 
 export const errorHandler = (error, req, res, next) => {
   const statusCode =
-    error.statusCode || (error.name === "ValidationError" ? 400 : 500);
+    error.statusCode ||
+    (error.code === 11000
+      ? 409
+      : error.name === "ValidationError" || error.name === "CastError"
+        ? 400
+        : 500);
   const details =
     error.details ||
-    (error.name === "ValidationError" ? error.errors : undefined);
+    (error.name === "ValidationError"
+      ? error.errors
+      : error.name === "CastError"
+        ? { path: error.path }
+        : undefined);
 
   if (statusCode >= 500) {
     console.error(error);

@@ -6,7 +6,6 @@ const addressSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     label: { type: String, trim: true, maxlength: 50 },
     fullName: { type: String, required: true, trim: true, maxlength: 120 },
@@ -23,6 +22,10 @@ const addressSchema = new mongoose.Schema(
 );
 
 addressSchema.index({ user: 1, isDefault: 1 });
+addressSchema.index(
+  { user: 1 },
+  { unique: true, partialFilterExpression: { isDefault: true } },
+);
 
 const Address =
   mongoose.models.Address || mongoose.model("Address", addressSchema);

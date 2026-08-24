@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import connectDB from "./config/db.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { securityHeaders } from "./middleware/securityHeaders.js";
+import authRoutes from "./routes/authRoutes.js";
+import addressRoutes from "./routes/addressRoutes.js";
 
 dotenv.config();
 
@@ -12,6 +14,8 @@ const app = express();
 app.use(cors());
 app.use(securityHeaders);
 app.use(express.json());
+app.use("/api/auth", authRoutes);
+app.use("/api/addresses", addressRoutes);
 
 app.get("/", (req, res) => {
   res.json({
