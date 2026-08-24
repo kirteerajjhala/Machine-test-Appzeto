@@ -10,25 +10,31 @@ const fields = [
   "image",
   "isActive",
 ];
+
 const valid = (input, partial = false) => {
   const errors = {};
-  const unknown = Object.keys(input).filter((key) => !fields.includes(key));
-  if (unknown.length) errors.fields = unknown;
-  for (const key of ["name", "price", "stock"])
-    if (!partial && (input[key] === undefined || input[key] === ""))
-      errors[key] = "This field is required";
+  if (!partial) {
+    if (input.name === undefined || input.name === "")
+      errors.name = "Product name is required";
+    if (input.price === undefined || input.price === "")
+      errors.price = "Product price is required";
+  }
+
   if (
     input.name !== undefined &&
     (typeof input.name !== "string" || !input.name.trim())
   )
-    errors.name = "Name is required";
+    errors.name = "Name must be a valid text";
+
   if (input.description !== undefined && typeof input.description !== "string")
     errors.description = "Description must be text";
+
   if (
     input.price !== undefined &&
     (!Number.isFinite(Number(input.price)) || Number(input.price) < 0)
   )
-    errors.price = "Price must be non-negative";
+    errors.price = "Price must be a non-negative number";
+
   if (
     input.discount !== undefined &&
     (!Number.isFinite(Number(input.discount)) ||
@@ -36,20 +42,37 @@ const valid = (input, partial = false) => {
       Number(input.discount) > 100)
   )
     errors.discount = "Discount must be between 0 and 100";
+
   if (
     input.stock !== undefined &&
     (!Number.isInteger(Number(input.stock)) || Number(input.stock) < 0)
   )
     errors.stock = "Stock must be a non-negative integer";
+
   if (Object.keys(errors).length)
     throw new ApiError(400, "Invalid product data", errors);
 };
+
 const parse = (req) => {
-  const input = { ...req.body };
-  const file = req.files?.image?.[0] || req.files?.images?.[0];
-  if (file) input.image = `/uploads/products/${file.filename}`;
-  for (const key of ["price", "discount", "stock"])
-    if (input[key] !== undefined) input[key] = Number(input[key]);
+  const input = {};
+
+  if (req.body?.name !== undefined) input.name = String(req.body.name).trim();
+  if (req.body?.description !== undefined)
+    input.description = String(req.body.description).trim();
+  if (req.body?.image !== undefined) input.image = String(req.body.image).trim();
+  if (req.body?.price !== undefined && req.body.price !== "")
+    input.price = Number(req.body.price);
+  if (req.body?.discount !== undefined && req.body.discount !== "")
+    input.discount = Number(req.body.discount);
+  else if (req.body?.discount === undefined && !req.params?.id)
+    input.discount = 0;
+  if (req.body?.stock !== undefined && req.body.stock !== "")
+    input.stock = Number(req.body.stock);
+  else if (req.body?.stock === undefined && !req.params?.id)
+    input.stock = 0;
+  if (req.body?.isActive !== undefined)
+    input.isActive = req.body.isActive === true || req.body.isActive === "true";
+
   return input;
 };
 export const listProducts = async (req, res) => {

@@ -12,15 +12,17 @@ export const notFoundHandler = (req, res, next) => {
 };
 
 export const errorHandler = (error, req, res, next) => {
-  if (error?.code?.startsWith?.("LIMIT_")) {
+  if (error?.code?.startsWith?.("LIMIT_") || error?.name === "MulterError") {
     return res.status(400).json({
       success: false,
       error: {
-        code: error.code,
+        code: error.code || "FILE_UPLOAD_ERROR",
         message:
           error.code === "LIMIT_UNEXPECTED_FILE"
-            ? "Please upload one product image"
-            : "Uploaded image is invalid or too large",
+            ? "Unexpected file upload field"
+            : error.code === "LIMIT_FILE_SIZE"
+              ? "Uploaded file is too large (max 10MB)"
+              : error.message || "Invalid file upload",
       },
     });
   }

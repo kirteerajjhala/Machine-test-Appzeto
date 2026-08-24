@@ -134,6 +134,7 @@ function AdminPanel({ user, setNotice, confirmAction }) {
     return <section className="empty">Admin access required.</section>;
   const reset = () => {
     setEditing(null);
+    setImageFile(null);
     setForm({
       name: "",
       description: "",
@@ -145,9 +146,12 @@ function AdminPanel({ user, setNotice, confirmAction }) {
   };
   const edit = (item) => {
     setEditing(item._id);
+    setImageFile(null);
     setForm({
       ...item,
       price: numericMoney(item.price),
+      discount: item.discount || 0,
+      stock: item.stock || 0,
       image: item.image || "",
     });
     setTab("products");
@@ -158,20 +162,17 @@ function AdminPanel({ user, setNotice, confirmAction }) {
     try {
       const productBody = {
         name: form.name,
-        description: form.description,
+        description: form.description || "",
         price: Number(form.price),
-        discount: Number(form.discount),
-        stock: Number(form.stock),
+        discount: Number(form.discount || 0),
+        stock: Number(form.stock || 0),
+        image: form.image || "",
       };
-      const body = new FormData();
-      for (const [key, value] of Object.entries(productBody))
-        body.append(key, Array.isArray(value) ? JSON.stringify(value) : value);
-      if (imageFile) body.append("image", imageFile);
       await request(editing ? `/products/${editing}` : "/products", {
         method: editing ? "PUT" : "POST",
-        body,
+        body: productBody,
       });
-      setNotice(editing ? "Product updated" : "Product created");
+      setNotice(editing ? "Product updated successfully" : "Product created successfully");
       reset();
       await load();
     } catch (e) {
@@ -264,30 +265,28 @@ function AdminPanel({ user, setNotice, confirmAction }) {
           </div>
           <form className="admin-form" onSubmit={save}>
             <h3>{editing ? "Edit product" : "Create product"}</h3>
-            {["name", "description", "images"].map((key) => (
-              <input
-                key={key}
-                required={!["description", "images"].includes(key)}
-                placeholder={
-                  key === "images"
-                    ? "Image URLs, comma separated"
-                    : key[0].toUpperCase() + key.slice(1)
-                }
-                value={form[key] || ""}
-                onChange={(e) => update(key, e.target.value)}
-              />
-            ))}
             <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(event) =>
-                setImageFile(event.target.files?.[0] || null)
-              }
+              required
+              placeholder="Product Name"
+              value={form.name}
+              onChange={(e) => update("name", e.target.value)}
             />
-            {imageFile && (
+            <textarea
+              placeholder="Product Description"
+              value={form.description}
+              onChange={(e) => update("description", e.target.value)}
+              rows="3"
+              style={{ padding: "0.75rem", borderRadius: "8px", border: "1px solid var(--line, #e2e8f0)", background: "inherit", color: "inherit", resize: "vertical" }}
+            />
+            <input
+              placeholder="Image URL (e.g. https://images.unsplash.com/...)"
+              value={form.image}
+              onChange={(e) => update("image", e.target.value)}
+            />
+            {form.image && (
               <img
                 className="upload-preview"
-                src={URL.createObjectURL(imageFile)}
+                src={imageUrl(form.image)}
                 alt="Product preview"
               />
             )}
@@ -461,17 +460,12 @@ export default function App() {
   };
   const addToCart = async (item = product) => {
     if (!loggedIn) return requireLogin();
-    const variant =
-      selectedVariant ||
-      item?.variants?.find((entry) => entry.isActive && entry.stock > 0) ||
-      item?.variants?.[0];
     setBusy(true);
     try {
       const data = await request("/cart/items", {
         method: "POST",
         body: {
           productId: item._id,
-          ...(variant ? { variantId: variant._id } : {}),
           quantity: 1,
         },
       });
@@ -539,7 +533,11 @@ export default function App() {
       const data = await request("/orders", {
         method: "POST",
         body: {
-          addressId: addresses.find((a) => a.isDefault)?.id || addresses[0].id,
+          addressId:
+            addresses.find((a) => a.isDefault)?.id ||
+            addresses.find((a) => a.isDefault)?._id ||
+            addresses[0]?.id ||
+            addresses[0]?._id,
         },
       });
       await request("/payments", {
@@ -691,8 +689,11 @@ export default function App() {
                       onClick={() => openProduct(item._id)}
                     >
                       <div className="visual">
-                        {item.images?.[0] && (
-                          <img src={imageUrl(item.images[0])} alt={item.name} />
+                        {(item.image || item.images?.[0]) && (
+                          <img
+                            src={imageUrl(item.image || item.images[0])}
+                            alt={item.name}
+                          />
                         )}
                         <span>{item.category}</span>
                         <strong>{item.name.slice(0, 1)}</strong>
@@ -702,7 +703,26 @@ export default function App() {
                           <h2>{item.name}</h2>
                           <p>{item.description}</p>
                         </div>
-                        <b>{money(item.price)}</b>
+                        <div>
+                          <b>
+                            {money(
+                              Number(item.price) *
+                                (1 - (Number(item.discount) || 0) / 100),
+                            )}
+                          </b>
+                          {Number(item.discount) > 0 && (
+                            <span
+                              style={{
+                                textDecoration: "line-through",
+                                opacity: 0.6,
+                                fontSize: "0.85em",
+                                marginLeft: "0.4rem",
+                              }}
+                            >
+                              {money(item.price)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </article>
                   ))
@@ -714,47 +734,61 @@ export default function App() {
             {view === "detail" && product && (
               <section className="detail">
                 <div className="visual large">
-                  {product.images?.[0] && (
-                    <img src={imageUrl(product.images[0])} alt={product.name} />
+                  {(product.image || product.images?.[0]) && (
+                    <img
+                      src={imageUrl(product.image || product.images[0])}
+                      alt={product.name}
+                    />
                   )}
-                  <span>{product.category}</span>
+                  <span>{product.stock > 0 ? `Stock: ${product.stock}` : "Out of stock"}</span>
                   <strong>{product.name.slice(0, 1)}</strong>
                 </div>
                 <div className="detail-copy">
-                  <span className="kicker">{product.sku}</span>
+                  <span className="kicker">
+                    {Number(product.discount) > 0
+                      ? `${product.discount}% Special Discount`
+                      : "Standard"}
+                  </span>
                   <h2>{product.name}</h2>
                   <p>{product.description}</p>
-                  <strong className="price">
-                    {money(selectedVariant?.price || product.price)}
-                  </strong>
-                  {product.variants?.length > 0 && (
-                    <div className="variants">
-                      <label>Choose a variant</label>
-                      <div>
-                        {product.variants.map((variant) => (
-                          <button
-                            className={
-                              selectedVariant?._id === variant._id
-                                ? "selected"
-                                : ""
-                            }
-                            key={variant._id}
-                            onClick={() => setSelectedVariant(variant)}
-                          >
-                            {Object.values(variant.attributes || {}).join(
-                              " / ",
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div style={{ display: "flex", alignItems: "baseline", margin: "0.5rem 0 1rem" }}>
+                    <strong className="price">
+                      {money(
+                        Number(product.price) *
+                          (1 - (Number(product.discount) || 0) / 100),
+                      )}
+                    </strong>
+                    {Number(product.discount) > 0 && (
+                      <>
+                        <span
+                          style={{
+                            textDecoration: "line-through",
+                            opacity: 0.6,
+                            fontSize: "1.1rem",
+                            marginLeft: "0.75rem",
+                          }}
+                        >
+                          {money(product.price)}
+                        </span>
+                        <span
+                          style={{
+                            color: "#16a34a",
+                            fontWeight: "600",
+                            fontSize: "0.95rem",
+                            marginLeft: "0.5rem",
+                          }}
+                        >
+                          ({product.discount}% OFF)
+                        </span>
+                      </>
+                    )}
+                  </div>
                   <button
                     className="primary"
-                    disabled={busy}
+                    disabled={busy || product.stock <= 0}
                     onClick={() => addToCart(product)}
                   >
-                    Add to bag
+                    {product.stock > 0 ? "Add to bag" : "Out of stock"}
                   </button>
                 </div>
               </section>
@@ -765,21 +799,48 @@ export default function App() {
                   {cart?.items?.length ? (
                     cart.items.map((item) => (
                       <div className="line" key={item.id}>
-                        {item.product?.images?.[0] && (
+                        {(item.product?.image || item.product?.images?.[0]) && (
                           <img
                             className="thumb"
-                            src={imageUrl(item.product.images[0])}
+                            src={imageUrl(
+                              item.product.image || item.product.images[0],
+                            )}
                             alt=""
                           />
                         )}
                         <div>
                           <h3>{item.product?.name}</h3>
                           <small>
-                            {item.variant?.attributes &&
-                              Object.values(item.variant.attributes).join(
-                                " / ",
-                              )}{" "}
-                            · {money(item.unitPrice)}
+                            {item.discount > 0 ? (
+                              <>
+                                <span
+                                  style={{
+                                    textDecoration: "line-through",
+                                    opacity: 0.6,
+                                    marginRight: "0.4rem",
+                                  }}
+                                >
+                                  {money(item.unitPrice)}
+                                </span>
+                                <b>
+                                  {money(
+                                    Number(item.unitPrice) *
+                                      (1 - item.discount / 100),
+                                  )}
+                                </b>
+                                <span
+                                  style={{
+                                    color: "#16a34a",
+                                    marginLeft: "0.4rem",
+                                    fontWeight: "600",
+                                  }}
+                                >
+                                  ({item.discount}% off)
+                                </span>
+                              </>
+                            ) : (
+                              money(item.unitPrice)
+                            )}
                           </small>
                         </div>
                         <div className="quantity">

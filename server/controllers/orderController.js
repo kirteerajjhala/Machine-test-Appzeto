@@ -79,9 +79,8 @@ export const createOrder = async (req, res) => {
     user: req.user._id,
     items: lines.map((line) => ({
       product: line.product._id,
-      variantId: line.variant?._id,
       name: line.name,
-      image: line.product.image,
+      image: line.product.image || "",
       quantity: line.quantity,
       unitPrice: line.unitPrice,
       discount: line.discount,

@@ -58,7 +58,7 @@ const startServer = async () => {
     60 * 1000,
   );
   app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT} [Updated Product Handler Active]`);
   });
 };
 
